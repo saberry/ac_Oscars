@@ -1,0 +1,77 @@
+---
+title: "Oscar Predictions Walkthrough"
+author: "Peter Zanca"
+date: "January 30, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Google News Model
+
+* Create a csv with each nominee's name (and actor's character)
+* Create the URL for each search you need to run:
+* Sample: https://www.google.com/search?&tbm=nws&q=joaquin+phoenix+arthur+fleck+Oscars
+    + Part 1: https://www.google.com/search?&tbm=nws&q=
+    + Part 2: Actor's name with spaces replaced by +
+    + Part 3: +
+    + Part 4: Character's name with spaces replaced by +
+    + Part 5: +Oscars
+* Loop through those pages and "scrape" the results element
+
+
+```{r eval =FALSE}
+library(tidyverse)
+library(rvest)
+library(RSelenium)
+
+#Set up the RSelenium driver.
+driver <- rsDriver(browser = c("chrome"),chromever ="79.0.3945.36", port = 4444L)
+remDr <- driver[["client"]]
+
+#Import the CSV into a dataframe and create a blank column for the search results.
+oscars2020 <- read_csv("oscars2020.csv") %>%
+  mutate(result_count = NA_character_)
+
+#Loop through each nominee in the dataframe
+for (nominee in 1:nrow(oscars2020)) {
+  
+    #Create the URL using the nominee name and secondary field (if applicable)
+    url <- paste0("https://www.google.com/search?&tbm=nws&q=",
+                  str_replace(oscars2020$nominee_name[nominee], " ", "+"), "+",
+                  ifelse(oscars2020$second_term[nominee] == 1,
+                         paste0(str_replace(oscars2020$character_name[nominee], " ", "+"), "+"),
+                         ""),
+                  "oscars")
+    
+    #Send RSelenium to the page
+    remDr$navigate(url)
+    
+    #Extract the HTML from the page
+    html <- remDr$getPageSource()[[1]]
+    html <- read_html(html)
+
+    #Extract the "Results Stats" from the page
+    result_count <- html %>%
+      html_nodes("#resultStats") %>%
+      html_text()
+    
+    #Add the stats to that row of the dataframe.
+    oscars2020$result_count[nominee] <- result_count
+  
+}
+
+#After you've scraped all the rows, clean up the result.
+oscars2020 <- oscars2020 %>%
+  mutate(result_count = str_extract(result_count, "(?<=About ).*(?= results)"),
+         result_count = str_remove_all(result_count, ","),
+         result_count = as.numeric(result_count))
+
+#Take the top results getter for each award.
+top_results <- oscars2020 %>%
+  group_by(award) %>%
+  top_n(result_count, n = 1)
+```
+
