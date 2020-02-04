@@ -11,7 +11,6 @@
 
 <meta name="author" content="Peter Zanca" />
 
-<meta name="date" content="2020-01-30" />
 
 <title>Oscar Predictions Walkthrough</title>
 
@@ -124,7 +123,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Oscar Predictions Walkthrough</h1>
 <h4 class="author"><em>Peter Zanca</em></h4>
-<h4 class="date"><em>January 30, 2020</em></h4>
+<h4 class="date"><em>February 4, 2020</em></h4>
 
 </div>
 
@@ -144,7 +143,14 @@ $(document).ready(function () {
 </ul></li>
 <li>Loop through those pages and “scrape” the results element</li>
 </ul>
-<pre class="r"><code>library(tidyverse)
+<pre class="r"><code>#If you need to install the packages used in this script, run the line below.
+#install.packages(c(&quot;tidyverse&quot;, &quot;rvest&quot;, &quot;RSelenium&quot;))
+
+#If you encounter an error when attempting to install RSelenium, use the following two lines to install an older version. (ONLY DO THIS IF YOU ENCOUNTER AN ISSUE INSTALLING RSELENIUM.)
+#require(devtools)
+#install_version(&quot;RSelenium&quot;, version = &quot;1.7.5&quot;, repos = &quot;http://cran.r-project.org&quot;)
+
+library(tidyverse)
 library(rvest)
 library(RSelenium)
 
@@ -217,7 +223,14 @@ top_results &lt;- oscars2020 %&gt;%
 <li>British Academy of Film and Television Arts (BAFTA)</li>
 <li>American Cinema Editors</li>
 </ul>
-<pre class="r"><code>library(tidyverse)
+<pre class="r"><code>#If you need to install the packages used in this script, run the line below.
+#install.packages(c(&quot;tidyverse&quot;, &quot;rvest&quot;, &quot;RSelenium&quot;))
+
+#If you encounter an error when attempting to install RSelenium, use the following two lines to install an older version. (ONLY DO THIS IF YOU ENCOUNTER AN ISSUE INSTALLING RSELENIUM.)
+#require(devtools)
+#install_version(&quot;RSelenium&quot;, version = &quot;1.7.5&quot;, repos = &quot;http://cran.r-project.org&quot;)
+
+library(tidyverse)
 library(rvest)
 library(RSelenium)
 
@@ -236,7 +249,7 @@ remDr &lt;- driver[[&quot;client&quot;]]
 awards_all &lt;- data.frame()
 
 #Loop through each award show in the award_show_list dataframe.
-for (award_show in 1:nrow(award_show_list)) {
+for (award_show in 8:nrow(award_show_list)) {
   
   #Create variables with the award show's name and URL.
   award_show_name &lt;- award_show_list$award_show[award_show]
@@ -284,21 +297,16 @@ for (award_show in 1:nrow(award_show_list)) {
     #Use rvest to read the HTML.
     html &lt;- read_html(html)
     
-    #Count the number of award categories and then subtract the number of award names and then add one.
-    #It's hard to explain, but this gives us a count of the awards without including things like lifetime achievement awards.
+    #Count the number of award categories on the page.
     number_of_awards &lt;- html %&gt;%
       html_nodes(&quot;.event-widgets__award-category&quot;) %&gt;%
-      length() - 
-      html %&gt;%
-      html_nodes(&quot;.event-widgets__award-name&quot;) %&gt;%
-      length() +
-      1
+      length()
     
     #If there is more than one award listed on the page, proceed with the following code to scrape the page.
     #(We do this because IMDb has award pages for some years that are just blank. We use this IF statement to skip those.)
     if (number_of_awards &gt; 1) {
       
-      #Loop through each award in the list of award categories
+      #Loop through each award on the page
       for (award in 1:number_of_awards) {
         
         #Use rvest to extract the name of the award (&quot;BEST PICTURE&quot;)
@@ -322,18 +330,24 @@ for (award_show in 1:nrow(award_show_list)) {
           html_nodes(&quot;.event-widgets__secondary-nominees&quot;) %&gt;%
           html_text()
         
-        #Create a temporary dataframe that combines the nominees and their details with the award show's name, the award's name, the year, the &quot;Reference Year&quot; variable, and whether or not they won.
-        #NOTE: On IMDb, the first person listed is the winner, so the ifelse statement below captures this.
-        temp_df &lt;- data.frame(nominees, details, stringsAsFactors = FALSE) %&gt;%
-          mutate(award_show = award_show_name,
-                 year = year,
-                 award = award_name,
-                 winner = ifelse(row_number() == 1, 1, 0),
-                 ref_year = ref_year)
+        #If the &quot;Award Name&quot; variable is blank, then the award is an honorary award, and we're not interested in it.
+        #If the &quot;Award Name&quot; variable isn't blank, then do the following steps.
+        if (length(award_name) != 0) {
         
-        #Add the temporary dataframe to the container capturing all of the award show data.
-        awards_all &lt;- rbind(awards_all,
-                            temp_df)
+          #Create a temporary dataframe that combines the nominees and their details with the award show's name, the award's name, the year, the &quot;Reference Year&quot; variable, and whether or not they won.
+          #NOTE: On IMDb, the first person listed is the winner, so the ifelse statement below captures this.
+          temp_df &lt;- data.frame(nominees, details, stringsAsFactors = FALSE) %&gt;%
+            mutate(award_show = award_show_name,
+                   year = year,
+                   award = award_name,
+                   winner = ifelse(row_number() == 1, 1, 0),
+                   ref_year = ref_year)
+          
+          #Add the temporary dataframe to the container capturing all of the award show data.
+          awards_all &lt;- rbind(awards_all,
+                              temp_df)
+        
+        }
         
       }
       
@@ -350,7 +364,75 @@ for (award_show in 1:nrow(award_show_list)) {
     
   }
  
-}</code></pre>
+}
+
+#Write all of the awards you've captured to a CSV.
+write_csv(awards_all, &quot;awards_all.csv&quot;)</code></pre>
+<p>Once we have collected the awards data, we now need to complete the following steps: * Map each unique award category to a master set of award categories for our analysis * Identify the past Oscar winners for each of those master award categories * Determine how often other award shows have selected the eventual Oscar winner * Tag “insider” awards shows * Create an “award score” for each award category and award show * Sum up the “award score” for this year’s nominees</p>
+<pre class="r"><code>#Create a list of the various award names across award shows. 
+#This will allow us to identify which category names (&quot;Best Actor in a Leading Role&quot;, &quot;Best Leading Actor&quot;, etc.) map to which categories (&quot;Best Actor&quot;).
+all_award_names &lt;- awards_all %&gt;%
+  distinct(award_show, award)
+
+#Write that list to a CSV.
+write_csv(all_award_names, &quot;awards_mapping_start.csv&quot;)
+#OUTSIDE OF R (IN EXCEL) MAP EACH CATEGORY NAME TO ITS ANALOGOUS OSCAR CATEGORY.
+
+#Read in the mapped file and &quot;unite&quot; the columns into one column.
+award_mapping &lt;- read_csv(&quot;awards_mapping_finish.csv&quot;) %&gt;%
+  unite(&quot;mapped_award&quot;, best_picture, best_actor, best_supporting_actor, best_actress, best_supporting_actress, best_director,
+        best_original_screenplay, best_adapted_screenplay 
+        remove = TRUE, sep = &quot;&quot;, na.rm = TRUE)
+
+#Create a list of the Oscar winners prior to this year.
+oscar_winners &lt;- awards_all %&gt;%
+  filter(ref_year &gt;= 2 &amp; award_show == &quot;Academy Awards&quot; &amp; winner == 1) %&gt;%
+  inner_join(award_mapping,
+             by = c(&quot;award_show&quot;, &quot;award&quot;)) %&gt;%
+  filter(mapped_award != &quot;&quot;) %&gt;%
+  select(ref_year, mapped_award, oscar_winner = nominees)
+
+#Using 538's methodology, create a score for each award show and award category.
+score_creation &lt;- awards_all %&gt;%
+  filter(ref_year &gt;= 2 &amp; award_show != &quot;Academy Awards&quot;) %&gt;%
+  inner_join(award_mapping,
+             by = c(&quot;award_show&quot;, &quot;award&quot;)) %&gt;%
+  filter(mapped_award != &quot;&quot;) %&gt;%
+  inner_join(oscar_winners, 
+             by = c(&quot;ref_year&quot;, &quot;mapped_award&quot;)) %&gt;%
+  select(ref_year, mapped_award, oscar_winner, nominees, award_show, winner) %&gt;%
+  mutate(nominees = ifelse(award_show == &quot;Directors Guild&quot; &amp; mapped_award == &quot;Best Director&quot; &amp; str_detect(nominees, &quot;,&quot;),
+                           str_sub(nominees, end = str_locate(nominees, &quot;,&quot;) - 1),
+                           nominees),
+         picked_winner = ifelse(oscar_winner == nominees &amp; winner == 1,
+                                1, 0)) %&gt;%
+  group_by(mapped_award, award_show, ref_year) %&gt;%
+  summarize(picked_winner = sum(picked_winner, na.rm = TRUE)) %&gt;%
+  ungroup() %&gt;%
+  group_by(mapped_award, award_show) %&gt;%
+  summarize(picked_years = sum(picked_winner, na.rm = TRUE),
+            total_years = n()) %&gt;%
+  ungroup() %&gt;%
+  mutate(insider_award = case_when(
+           award_show == &quot;BAFTA&quot; ~ 1,
+           mapped_award == &quot;Best Picture&quot; &amp; award_show == &quot;Producers Guild&quot; ~ 1,
+           mapped_award == &quot;Best Actor&quot; &amp; award_show == &quot;SAG&quot; ~ 1,
+           mapped_award == &quot;Best Supporting Actor&quot; &amp; award_show == &quot;SAG&quot; ~ 1,
+           mapped_award == &quot;Best Actress&quot; &amp; award_show == &quot;SAG&quot; ~ 1,
+           mapped_award == &quot;Best Supporting Actress&quot; &amp; award_show == &quot;SAG&quot; ~ 1,
+           mapped_award == &quot;Best Director&quot; &amp; award_show == &quot;Directors Guild&quot; ~ 1,
+           TRUE ~ 0
+         ),
+         percent_years = picked_years / total_years,
+         squared_percent_years = percent_years ^ 2,
+         award_score = ifelse(insider_award == 1,
+                        squared_percent_years * 2,
+                        squared_percent_years)) %&gt;%
+  select(mapped_award, award_show, award_score)
+
+#Calculate the scores for each of this year's nominees.
+
+#How would you do this?</code></pre>
 </div>
 
 
